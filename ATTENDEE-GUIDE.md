@@ -48,15 +48,17 @@ deploy configuration**, which is the part that doesn't.
 
 ### 1.1 Clone the repo into your workspace
 
-Ask the agent to clone your repo into the ZCP workspace. It's public, so no
-credential is needed.
+> **Prompt:** Clone `https://github.com/<you>/<your-repo>` into this workspace.
+
+It's public, so no credential is needed.
 
 ### 1.2 Let the agent provision the services
 
-Tell it what you want, in your own words. Something like:
+Tell it what you want, in your own words:
 
-> Import this repo and deploy it to this project. It needs a frontend, an API,
-> a worker, plus PostgreSQL, NATS and Valkey. Read AGENTS.md first.
+> **Prompt:** Import this repo and deploy it into this project. It needs a
+> frontend, an API and a worker, plus PostgreSQL, NATS and Valkey. Read
+> AGENTS.md first — it describes what each service needs.
 
 The agent reads `AGENTS.md`, works out the topology, and provisions.
 
@@ -70,7 +72,10 @@ There's no `zerops.yaml` in the repo. That file tells Zerops how to build,
 deploy and run each service, and **writing it is the exercise**. The agent
 will draft it; your job is to understand what it wrote.
 
-Ask it to walk you through the file. Three things worth asking about:
+> **Prompt:** Walk me through the zerops.yaml you wrote. For each service,
+> explain what the build step does and what the runtime needs.
+
+Three things worth pushing on:
 
 - **Why does `worker` need `prepareCommands`?** (What does rendering need
   that a plain Node container doesn't have?)
@@ -82,6 +87,16 @@ Each answer is a real Zerops concept. If the agent can't explain one, that's
 a good sign it guessed.
 
 ### 1.4 Deploy and verify
+
+Three services need deploying, and they do **not** have to go one at a time.
+The agent can batch them — the builds then run concurrently instead of
+end-to-end, which is roughly three times faster.
+
+> **Prompt:** Deploy all three runtime services in parallel, then verify each
+> one and give me the public URLs.
+
+If the agent deploys them sequentially, ask it to use a parallel deploy
+instead — it's a good habit for any multi-service project.
 
 **✅ Check:** open the frontend URL. You should get the workshop page, and
 *Open Deck Renderer* takes you to the editor.
@@ -110,7 +125,8 @@ This number is the whole point of the next step. Don't skip it.
 
 ### 2.2 Scale the worker
 
-Ask the agent to scale `worker` to **3 containers**.
+> **Prompt:** Scale the worker service to 3 containers and confirm all three
+> are running.
 
 **✅ Check:** confirm all three are actually running before continuing.
 
@@ -146,8 +162,10 @@ answer far better if you've seen the evidence.
 
 ### Reading the logs
 
-Pull the log lines for **one job id** across **all** worker containers and
-put them in time order. That single view is usually enough.
+> **Prompt:** Show me the worker logs for job `<id>` across all containers,
+> in time order.
+
+That single view is usually enough.
 
 Ask yourself: how many containers claim to be working on this one job?
 
@@ -169,9 +187,11 @@ Now, and only now, does git appear.
 
 ### 4.1 Fix it on dev
 
-Have the agent make the change and deploy to dev. **✅ Check:** run your
-benchmark deck again. Does `ms/slide` finally improve with 3 workers? Does
-`progress` match `slideCount`?
+> **Prompt:** Apply the fix you proposed, deploy it to dev, and prove it
+> worked by re-running the same deck.
+
+**✅ Check:** run your benchmark deck again. Does `ms/slide` finally improve
+with 3 workers? Does `progress` match `slideCount`?
 
 If it doesn't, the fix is wrong. Say so and iterate.
 
@@ -189,7 +209,9 @@ merging anything.** Production is yours to release, not the agent's.
 
 ### 4.3 Push and open a PR
 
-Ask the agent to commit and push a branch. It will print a link:
+> **Prompt:** Commit this on a new branch and push it. Don't merge anything.
+
+It will print a link:
 
 ```
 remote: Create a pull request for 'fix/...' on GitHub by visiting:
