@@ -13,7 +13,7 @@ export type ScaleReproResult = {
   logs: string[];
 };
 
-/** Characterize the deliberate workshop bug: per-process locks, NATS fan-out. */
+/** Drives one job through N in-process replicas and reports per-replica outcomes. */
 export async function runScaleRepro(
   replicas: number,
   markdown = DEFAULT_DECK,
