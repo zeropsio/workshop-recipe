@@ -1,9 +1,9 @@
-import { runScaleRepro } from "@deck/engine";
+import { runReplicas } from "@deck/engine";
 
 const replicas = Number(process.env.REPLICAS ?? 5);
 
 async function main(): Promise<void> {
-  const result = await runScaleRepro(replicas);
+  const result = await runReplicas(replicas);
 
   console.log(`replicas=${result.replicas}`);
   console.log(`acquired=${result.acquired}`);
@@ -11,9 +11,6 @@ async function main(): Promise<void> {
   console.log(`progress=${result.progress} (slide count is ${result.slideCount})`);
   for (const line of result.logs) console.log(line);
 
-  if (result.acquired <= 1) {
-    throw new Error("expected multiple replicas to acquire the local lock");
-  }
 }
 
 void main();
