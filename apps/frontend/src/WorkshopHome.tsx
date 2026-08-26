@@ -6,6 +6,7 @@ import {
   Rocket,
   Scale,
   Terminal,
+  Ticket,
 } from "lucide-react";
 import { SiteLogo } from "@/SiteLogo";
 import { CouponBanner } from "@/CouponBanner";
@@ -88,8 +89,13 @@ export function WorkshopHome({ onOpenApp }: WorkshopHomeProps) {
             {WORKSHOP.description}
           </p>
 
-          <div className="mt-8">
-            <Button size="lg" className="h-11 px-6" asChild={!onOpenApp} onClick={onOpenApp}>
+          <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <Button
+              size="lg"
+              className="h-[3.25rem] w-full px-8 text-base font-semibold shadow-[0_0_50px_-10px_rgba(94,234,212,0.65)] transition-shadow hover:shadow-[0_0_60px_-8px_rgba(94,234,212,0.8)] sm:w-auto"
+              asChild={!onOpenApp}
+              onClick={onOpenApp}
+            >
               {onOpenApp ? (
                 <>
                   Open Deck Renderer
@@ -102,6 +108,13 @@ export function WorkshopHome({ onOpenApp }: WorkshopHomeProps) {
                 </a>
               )}
             </Button>
+            <a
+              href="#coupon"
+              className="inline-flex items-center gap-1.5 text-sm text-zinc-400 underline-offset-4 transition-colors hover:text-primary hover:underline"
+            >
+              <Ticket className="size-4" aria-hidden="true" />
+              Get your workshop coupon
+            </a>
           </div>
 
           <ul className="mt-10 flex flex-wrap gap-2">
@@ -115,9 +128,6 @@ export function WorkshopHome({ onOpenApp }: WorkshopHomeProps) {
             ))}
           </ul>
 
-          <div className="mt-10">
-            <CouponBanner embedded />
-          </div>
         </section>
 
         <section className="border-y border-white/10 bg-[#0f1115]/80 px-4 py-14 sm:px-6 sm:py-16">
@@ -174,6 +184,15 @@ export function WorkshopHome({ onOpenApp }: WorkshopHomeProps) {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section
+          id="coupon"
+          className="scroll-mt-20 px-4 pb-14 sm:px-6 sm:pb-16"
+        >
+          <div className="mx-auto max-w-6xl lg:max-w-5xl">
+            <CouponBanner embedded />
           </div>
         </section>
       </main>

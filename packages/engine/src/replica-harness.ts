@@ -4,7 +4,7 @@ import { handleJob } from "./handle.js";
 
 const DEFAULT_DECK = "# A\n\n---\n\n# B\n\n---\n\n# C";
 
-export type ScaleReproResult = {
+export type ReplicaRunResult = {
   replicas: number;
   acquired: number;
   conflicts: number;
@@ -13,11 +13,11 @@ export type ScaleReproResult = {
   logs: string[];
 };
 
-/** Characterize the deliberate workshop bug: per-process locks, NATS fan-out. */
-export async function runScaleRepro(
+/** Drives one job through N in-process replicas and reports per-replica outcomes. */
+export async function runReplicas(
   replicas: number,
   markdown = DEFAULT_DECK,
-): Promise<ScaleReproResult> {
+): Promise<ReplicaRunResult> {
   const store = createMemoryStore();
   const cache = createMemoryCache();
   const bus = createMemoryBus();

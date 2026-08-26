@@ -4,8 +4,7 @@ Markdown in, PNG/PDF slides out. The SPA submits a deck; the API records the
 job and publishes work; workers render; Postgres stores results; Valkey carries
 progress; the browser watches the queue over a WebSocket.
 
-Pipeline: repo-root `zerops.yaml`. Setups: `frontend` / `frontend-dev`,
-`api` / `api-dev`, `worker` / `worker-dev`, `logquery`. No Dockerfile.
+Deploy configuration is a repo-root `zerops.yaml` that you write. No Dockerfile.
 
 ## Services the code expects
 
