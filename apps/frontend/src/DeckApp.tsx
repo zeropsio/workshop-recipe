@@ -29,6 +29,15 @@ const API = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(
 
 const markdown = new MarkdownIt({ html: false, linkify: false });
 
+function formatDuration(ms: number): string {
+  if (ms <= 0) return "—";
+  if (ms < 1000) return `${ms} ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(2)} s`;
+  const m = Math.floor(s / 60);
+  return `${m}m ${(s - m * 60).toFixed(1)}s`;
+}
+
 function wsUrl(): string {
   const url = new URL(API);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
@@ -52,10 +61,17 @@ export function DeckApp({ onHome }: DeckAppProps) {
   const [failed, setFailed] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingPngs, setExportingPngs] = useState(false);
-  const [panelTab, setPanelTab] = useState<"editor" | "instructions">("editor");
   const [previewIndex, setPreviewIndex] = useState(0);
   const [renderPreviewOpen, setRenderPreviewOpen] = useState(false);
   const [renderSlideIndex, setRenderSlideIndex] = useState(0);
+
+  // Render benchmark — wall clock from submit to job.done, kept per run so
+  // successive runs (e.g. after scaling workers) can be compared directly.
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [runs, setRuns] = useState<
+    { at: number; slides: number; ms: number }[]
+  >([]);
 
   const drafts = useMemo(() => splitSlides(source), [source]);
   const preview = drafts[Math.min(previewIndex, drafts.length - 1)] ?? "";
@@ -63,6 +79,15 @@ export function DeckApp({ onHome }: DeckAppProps) {
   useEffect(() => {
     if (previewIndex > drafts.length - 1) setPreviewIndex(Math.max(0, drafts.length - 1));
   }, [drafts.length, previewIndex]);
+
+  // Tick the live timer while a render is in flight.
+  useEffect(() => {
+    if (!busy || startedAt === null) return;
+    const tick = window.setInterval(() => {
+      setElapsedMs(Date.now() - startedAt);
+    }, 100);
+    return () => window.clearInterval(tick);
+  }, [busy, startedAt]);
 
   useEffect(() => {
     const socket = new WebSocket(wsUrl());
@@ -100,6 +125,18 @@ export function DeckApp({ onHome }: DeckAppProps) {
     };
     return () => socket.close();
   }, []);
+
+  // Freeze the clock and record the run. Guarded on startedAt so the
+  // websocket and the poll fallback cannot both record the same job.
+  useEffect(() => {
+    if (!done || startedAt === null) return;
+    const ms = Date.now() - startedAt;
+    setElapsedMs(ms);
+    setRuns((prev) =>
+      [{ at: Date.now(), slides: slideCount, ms }, ...prev].slice(0, 5),
+    );
+    setStartedAt(null);
+  }, [done, startedAt, slideCount]);
 
   useEffect(() => {
     if (!busy || !jobId || done || failed) return;
@@ -182,6 +219,8 @@ export function DeckApp({ onHome }: DeckAppProps) {
     setDone(false);
     setFailed(false);
     setProgress(0);
+    setElapsedMs(0);
+    setStartedAt(Date.now());
     setNote("Submitting…");
     const res = await fetch(`${API}/api/jobs`, {
       method: "POST",
@@ -394,32 +433,8 @@ export function DeckApp({ onHome }: DeckAppProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 border-b border-white/10">
-            {(
-              [
-                ["editor", "Editor"],
-                ["instructions", "Instructions"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setPanelTab(id)}
-                className={cn(
-                  "border-b-2 px-3 py-2.5 text-sm font-medium transition-colors sm:px-4",
-                  panelTab === id
-                    ? "border-primary text-white"
-                    : "border-transparent text-zinc-500 hover:text-zinc-300",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="min-h-[min(80dvh,34rem)]">
-            {panelTab === "editor" ? (
-              <div className="grid min-h-[min(80dvh,34rem)] md:grid-cols-2">
+          <div>
+            <div className="grid min-h-[min(60dvh,30rem)] md:grid-cols-2">
                 <div className="flex min-h-[min(40dvh,20rem)] flex-col border-b border-white/10 md:min-h-[min(80dvh,34rem)] md:border-b-0 md:border-r md:border-white/10">
                   <label className="sr-only" htmlFor="deck">
                     Markdown deck
@@ -473,9 +488,9 @@ export function DeckApp({ onHome }: DeckAppProps) {
                     />
                   </div>
                 </aside>
-              </div>
-            ) : (
-              <aside className="p-4 text-sm leading-relaxed text-zinc-300 sm:p-6">
+            </div>
+
+            <aside className="border-t border-white/10 p-4 text-sm leading-relaxed text-zinc-300 sm:p-6">
                 <h2 className="text-base font-semibold text-white">
                   Markdown → presentation
                 </h2>
@@ -491,6 +506,63 @@ export function DeckApp({ onHome }: DeckAppProps) {
                     <span className="tabular-nums">{ratio}%</span>
                   </div>
                   <Progress value={ratio} />
+                </div>
+
+                <div className="mt-5 rounded-md border border-white/10 bg-black/30 p-3 sm:p-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                      Render benchmark
+                    </span>
+                    <span className="font-mono text-[10px] text-zinc-600">
+                      submit → done
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+                    <span className="font-mono text-2xl tabular-nums text-white">
+                      {formatDuration(elapsedMs)}
+                    </span>
+                    {slideCount > 0 && elapsedMs > 0 ? (
+                      <span className="font-mono text-xs tabular-nums text-zinc-400">
+                        {(elapsedMs / slideCount).toFixed(0)} ms/slide
+                        <span className="mx-2 text-zinc-700">·</span>
+                        {(slideCount / (elapsedMs / 1000)).toFixed(2)} slides/s
+                      </span>
+                    ) : null}
+                    {busy ? (
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-primary">
+                        running
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {runs.length > 0 ? (
+                    <div className="mt-3 border-t border-white/10 pt-2">
+                      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                        Recent runs
+                      </div>
+                      <ul className="mt-1.5 space-y-1">
+                        {runs.map((run) => (
+                          <li
+                            key={run.at}
+                            className="flex items-baseline justify-between gap-3 font-mono text-xs tabular-nums text-zinc-400"
+                          >
+                            <span>{run.slides} slides</span>
+                            <span className="h-px flex-1 self-center bg-white/5" />
+                            <span className="text-zinc-200">{formatDuration(run.ms)}</span>
+                            <span className="w-20 text-right text-zinc-500">
+                              {(run.ms / run.slides).toFixed(0)} ms/slide
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-2 text-[11px] leading-snug text-zinc-500">
+                        Scale <code className="text-zinc-400">worker</code> and run again —
+                        compare ms/slide to see whether the extra containers actually
+                        helped.
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
 
                 <h3 className="mt-6 font-semibold text-white">Separate slides</h3>
@@ -560,8 +632,7 @@ export function DeckApp({ onHome }: DeckAppProps) {
                     </div>
                   </div>
                 ) : null}
-              </aside>
-            )}
+            </aside>
           </div>
         </div>
       </section>

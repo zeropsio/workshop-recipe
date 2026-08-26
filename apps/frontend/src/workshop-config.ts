@@ -4,7 +4,7 @@ export const WORKSHOP = {
   description:
     "You built a real app with an AI coding agent and took it from prompt to deployment with ZCP — a multi-service stack on Zerops, scaled and debugged while keeping production under control.",
   coupon: {
-    code: "CYC2016",
+    code: "CYC2026",
     verificationPaymentUsd: 10,
     defaultBonusUsd: 50,
     workshopBonusUsd: 100,
