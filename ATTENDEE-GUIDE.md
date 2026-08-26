@@ -3,7 +3,8 @@
 **From Prompt to Prod: Build and Deploy with ZCP**
 
 You'll build a real multi-service app, deploy it to Zerops, scale it under
-load, find out what happens when you do, and ship a fix through review.
+load, find out what happens when you do, ship a fix through review, and put
+it into production.
 
 You work by *talking to an agent* in ZCP. You are not typing deploy commands
 by hand — you describe what you want, the agent does it, and you check the
@@ -222,6 +223,68 @@ remote:      https://github.com/<you>/<repo>/pull/new/fix/...
 
 **✅ Check:** the merge is what deploys production. Confirm the change is
 live before you call it done.
+
+---
+
+## Part 5 — Deploy to production
+
+Production is a **separate Zerops project**. Its own network, its own
+database, its own credentials. Nothing is shared with dev — that's the point.
+
+### 5.1 Write the production topology
+
+Your repo has no production import yet. Same deal as `zerops.yaml`: the agent
+drafts it, you decide whether it's right.
+
+> **Prompt:** Write an import.yaml for a production project running this same
+> stack. Managed services should be highly available and the worker pool
+> should run several containers. Explain each choice.
+
+Three decisions worth arguing about before you accept it:
+
+- **`corePackage`** — `SERIOUS` gives a dedicated core, better SLA and much
+  higher build/egress limits. `LIGHT` is cheaper and allowed. Upgrading later
+  costs $10, is irreversible, and briefly drops the project network.
+- **`:ha` vs `:single`** on the managed services. `:ha` is a 3-node cluster
+  with automatic failover — and it is **immutable**. Changing your mind later
+  means deleting the service and its data. Decide now, not after.
+- **Worker containers.** Runtimes have no `:ha` flag; for a runtime, "highly
+  available" simply *is* the container count.
+
+### 5.2 Merge first
+
+Production builds from your repo, not from your dev containers. So the merge
+from Part 4 has to have landed — `main` needs both `zerops.yaml` and your new
+import file.
+
+**✅ Check:** view both files on GitHub, on `main`. If they're not there,
+production has nothing to build.
+
+### 5.3 Create the project — you, not the agent
+
+```bash
+zcli project project-import import.yaml
+```
+
+Or in the dashboard: **Projects → Import project**, and paste the file.
+
+This step is deliberately yours. The agent has no credential that can create
+a project, and that's what keeps "agent broke production" off the table.
+
+**✅ Check:** all services reach `ACTIVE`. Managed ones come up first.
+
+### 5.4 Prove it
+
+**✅ Check:** open the production frontend and submit a deck. Real slides,
+real PDF — from a completely separate stack.
+
+### 5.5 From now on
+
+Merging to `main` rebuilds production. `buildFromGit` clones your repo, runs
+the build from `zerops.yaml`, and ships it. No further imports needed.
+
+That's the whole loop: **the agent iterates on dev, you release to
+production.**
 
 ---
 
