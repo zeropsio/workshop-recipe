@@ -1,5 +1,7 @@
 # Deck Renderer
 
+**Attending the workshop? Start here: [ATTENDEE-GUIDE.md](ATTENDEE-GUIDE.md).**
+
 <!-- #ZEROPS_EXTRACT_START:intro# -->
 Workshop app for [Zerops](https://zerops.io): submit markdown, workers render
 each section to PNG/PDF, and the browser shows live queue depth. Topology is
