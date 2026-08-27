@@ -65,6 +65,10 @@ async function launchChromium() {
   });
 }
 
+// Runs inside the browser via page.evaluate, so `document` exists at runtime
+// but not in this package's Node lib. Type-only declaration; erased at compile.
+declare const document: { fonts: { ready: Promise<unknown> } };
+
 async function captureSlide(page: Page, html: string): Promise<Buffer> {
   await page.setContent(html, { waitUntil: "domcontentloaded" });
   await page.locator(".slide").waitFor({ state: "visible" });
@@ -115,6 +119,7 @@ export async function renderSlidePng(
   spinMs: number,
 ): Promise<Buffer> {
   const [png] = await renderAllSlides([source], driver, spinMs);
+  if (!png) throw new Error("render produced no slide");
   return png;
 }
 
