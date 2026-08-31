@@ -18,6 +18,22 @@ zerops:
   # time. ${api_zeropsSubdomain} carries its -3000 suffix only once api
   # has deployed once; on a first launch into an empty project, let api
   # come up first, then re-release frontend.
+  - setup: zcp
+    run:
+      base: zcp@1
+      initCommands:
+        - curl -sSfL https://zerops.io/zcp/install.sh | sudo sh
+        - zcp init
+        - sudo -E zcp init nginx
+      ports:
+        - port: 8080
+          httpSupport: true
+      startCommands:
+        - command: zcp service start nginx
+          name: nginx
+        - command: zcp service start vscode
+          name: vscode
+
   - setup: frontend
     build:
       base: ubuntu/nodejs@22

@@ -1,3 +1,5 @@
+#zeropsPreprocessor=on
+
 # yaml-language-server: $schema=https://api.app-prg1.zerops.io/api/rest/public/settings/import-project-yaml-json-schema.json
 #
 # AI agent env — zcp workspace plus dev/stage pairs for frontend, api,
@@ -12,12 +14,16 @@ services:
   # the frontend/api/worker hostnames, not here.
   - hostname: zcp
     type: zcp@1
-    # No pipeline targets this service, so without startWithoutCode it
-    # waits for a first deploy that never comes and never boots.
-    startWithoutCode: true
+    maxContainers: 1
+    enableSubdomainAccess: true
     verticalAutoscaling:
-      minRam: 1
-      minFreeRamGB: 0.5
+      minRam: 2
+    buildFromGit: https://github.com/zeropsio/workshop-recipe@js
+    vault:
+      VSCODE_PASSWORD: "<@generateRandomString(<32>)>"
+      ZCP_VSCODE_AUTH_ENABLED: "true"
+      ZCP_VSCODE: "true"
+      ZCP_AGENT_AUTH_TYPE_CLAUDE_CODE: "oauth"
 
   - hostname: frontenddev
     type: ubuntu/nodejs@22
