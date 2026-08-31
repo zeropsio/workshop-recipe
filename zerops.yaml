@@ -56,7 +56,6 @@ zerops:
       envVariables:
         VITE_API_URL: ${apidev_zeropsSubdomain}
         VITE_WORKSHOP_ENV: dev
-      start: zsc noop --silent
 
   # ── api (prod) ──────────────────────────────────────────────
   # REST + WebSocket. Talks to db, queue, and cache by hostname.
@@ -88,7 +87,7 @@ zerops:
       envVariables:
         NODE_ENV: production
         PORT: "3000"
-        HOST: 0.0.0.0
+        HOST: "::"
         # CORS is scoped by the project's own subdomain host, a project-level
         # value present from project creation. Referencing the frontend
         # service here instead would deadlock: frontend's build needs
@@ -127,7 +126,7 @@ zerops:
       envVariables:
         NODE_ENV: development
         PORT: "3000"
-        HOST: 0.0.0.0
+        HOST: "::"
         # Same project-scope CORS host as the prod api — admits the Vite
         # slot and the static SPA alike, in any region.
         PROJECT_SUBDOMAIN_HOST: ${zeropsSubdomainHost}
@@ -137,7 +136,6 @@ zerops:
         NATS_PORT: ${queue_port}
         NATS_USER: ${queue_user}
         NATS_PASSWORD: ${queue_password}
-      start: zsc noop --silent
 
   # ── worker (prod) ───────────────────────────────────────────
   # CPU-bound Chromium. No public HTTP. System packages live in
@@ -156,7 +154,7 @@ zerops:
       # 24.04 — both 100 apt. Chrome is a real .deb Playwright can launch.
       prepareCommands:
         - sudo apt-get update
-        - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ca-certificates fonts-liberation fonts-noto
+        - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates fonts-liberation fonts-noto
         - curl -fsSL -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
         - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/chrome.deb
         - rm -f /tmp/chrome.deb
@@ -185,7 +183,7 @@ zerops:
       base: ubuntu/nodejs@22
       prepareCommands:
         - sudo apt-get update
-        - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ca-certificates fonts-liberation fonts-noto
+        - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates fonts-liberation fonts-noto
         - curl -fsSL -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
         - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/chrome.deb
         - rm -f /tmp/chrome.deb
@@ -199,4 +197,3 @@ zerops:
         NATS_PORT: ${queue_port}
         NATS_USER: ${queue_user}
         NATS_PASSWORD: ${queue_password}
-      start: zsc noop --silent
