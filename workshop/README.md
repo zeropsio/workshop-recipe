@@ -1,6 +1,6 @@
 # Conference projects
 
-GUI recipe (six lifecycle envs): [`recipes/deck-renderer/`](../recipes/deck-renderer/).
+GUI recipe (six lifecycle envs): [`../.zerops-recipe/deck-renderer/`](../.zerops-recipe/deck-renderer/).
 
 **Attendees:** deployed frontend **`/`** — workshop homepage; **`/app`** — Deck Renderer.
 
