@@ -37,7 +37,7 @@ services:
     type: ubuntu/nodejs@22
     zeropsSetup: worker
     buildFromGit: https://github.com/zeropsio/workshop-recipe
-    minContainers: 2
+    minContainers: 3
     verticalAutoscaling:
       minRam: 1
       minFreeRamGB: 0.5

@@ -27,6 +27,7 @@ services:
     priority: 5
     verticalAutoscaling:
       minRam: 0.5
+      minFreeRamGB: 0.25
 
   - hostname: workerdev
     type: ubuntu/nodejs@22

@@ -19,7 +19,7 @@ services:
     enableSubdomainAccess: true
     verticalAutoscaling:
       minRam: 2
-    buildFromGit: https://github.com/zeropsio/workshop-recipe@js
+    buildFromGit: https://github.com/zeropsio/workshop-recipe
     vault:
       VSCODE_PASSWORD: "<@generateRandomString(<32>)>"
       ZCP_VSCODE_AUTH_ENABLED: "true"
@@ -44,6 +44,7 @@ services:
     priority: 5
     verticalAutoscaling:
       minRam: 0.5
+      minFreeRamGB: 0.25
 
   # Chromium lives in run.prepareCommands — needs the Ubuntu worker-dev
   # setup, not a process-only app container.

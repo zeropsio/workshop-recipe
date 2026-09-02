@@ -24,6 +24,9 @@ services:
     # Created before the SPA so ${api_zeropsSubdomain}
     # already carries its -3000 port when the SPA builds.
     priority: 5
+    verticalAutoscaling:
+      minRam: 0.5
+      minFreeRamGB: 0.25
 
   - hostname: worker
     type: ubuntu/nodejs@22
