@@ -12,8 +12,8 @@ import {
 import { DeployedStackDiagram } from "@/components/DeployedStackDiagram";
 import { WorkshopPillars } from "@/components/WorkshopPillars";
 import { WorkshopQrCodes } from "@/components/WorkshopQrCodes";
-import { recipeToNetworkDiagram } from "@/lib/recipe-to-network-diagram";
-import { activeResourceConfig } from "@/lib/workshop-resources";
+import { undrawnServices, workshopEnvToNetworkDiagram } from "@/lib/recipe-to-network-diagram";
+import { resolveWorkshopEnv } from "@/lib/workshop-envs";
 import { AGENDA, LINKS, WORKSHOP } from "@/workshop-config";
 
 const SECTION = "px-4 py-16 sm:px-6 lg:py-20";
@@ -51,8 +51,10 @@ type WorkshopHomeProps = {
 };
 
 export function WorkshopHome({ onOpenApp, onOpenPrompts, onOpenCapabilities }: WorkshopHomeProps) {
-  const resourceConfig = activeResourceConfig();
-  const networkDiagram = recipeToNetworkDiagram(resourceConfig);
+  const { env, resolved } = resolveWorkshopEnv();
+  const endpoint = `HTTPS://${window.location.host.toUpperCase()}`;
+  const networkDiagram = env ? workshopEnvToNetworkDiagram(env, endpoint) : null;
+  const undrawn = env ? undrawnServices(env).map((service) => service.name) : [];
 
   return (
     <div className="relative min-h-svh overflow-x-hidden bg-background text-foreground">
@@ -87,10 +89,37 @@ export function WorkshopHome({ onOpenApp, onOpenPrompts, onOpenCapabilities }: W
           <div className={CONTAINER}>
             <SectionHeader
               title="Your Deck Renderer on Zerops"
-              description="The same project topology as zerops.io — public endpoint, project core, L7 balancer, and every service this recipe deployed. Container counts come from your live resource config."
+              description={
+                <>
+                  {env ? (
+                    <p>
+                      The <strong>{env.title}</strong> environment as its import.yaml defines it — public endpoint,
+                      project core, L7 balancer, and every service the recipe created. Container counts are the
+                      import-time minimums, not live values: scaling done later in ZCP or the GUI is not reflected
+                      here.
+                    </p>
+                  ) : (
+                    <p>
+                      This build was made from a tree without <code>.zerops-recipe</code>, so there is no topology to
+                      draw. The static frontend built from the repository shows it.
+                    </p>
+                  )}
+                  {env && !resolved ? (
+                    <p>
+                      This build has no <code>VITE_WORKSHOP_ENV</code>, so the Stage topology is shown.
+                    </p>
+                  ) : null}
+                  {undrawn.length > 0 ? (
+                    <p>
+                      Not drawn: {undrawn.join(", ")} — workspace containers the agent or a developer works in, not
+                      part of the served app.
+                    </p>
+                  ) : null}
+                </>
+              }
             />
             <div className={`${SECTION_BODY} overflow-x-auto rounded-2xl bg-muted px-3 py-8 sm:px-6`}>
-              <DeployedStackDiagram config={networkDiagram} />
+              {networkDiagram ? <DeployedStackDiagram config={networkDiagram} /> : null}
             </div>
           </div>
         </section>

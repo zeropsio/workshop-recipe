@@ -1,14 +1,17 @@
 # yaml-language-server: $schema=https://api.app-prg1.zerops.io/api/rest/public/settings/import-project-yaml-json-schema.json
 #
-# Remote CDE — same topology as the agent env without zcp. Developers
-# SSH into *dev hostnames. Public URLs resolve from
-# ${hostname_zeropsSubdomain} in zerops.yaml.
+# Remote CDE - same topology as the AI Agent env without zcp. Developers SSH into the *dev hostnames and run the dev servers by hand.
+# The *stage hostnames run the production setups. Public URLs resolve from ${hostname_zeropsSubdomain} in zerops.yaml.
 
 project:
   name: deck-renderer-remote
   location: us-west-1
 
 services:
+  #
+  # Dev apps
+  #
+
   - hostname: frontenddev
     type: ubuntu/nodejs@22
     zeropsSetup: frontend-dev
@@ -16,14 +19,16 @@ services:
     enableSubdomainAccess: true
     verticalAutoscaling:
       minRam: 0.5
+    # Tells the homepage which environment topology to draw. The Vite build reads it as ${RUNTIME_VITE_WORKSHOP_ENV}, the dev server reads it directly.
+    vault:
+      VITE_WORKSHOP_ENV: remote-cde
 
   - hostname: apidev
     type: ubuntu/nodejs@22
     zeropsSetup: api-dev
     buildFromGit: https://github.com/zeropsio/workshop-recipe
     enableSubdomainAccess: true
-    # Created before the SPA so ${apidev_zeropsSubdomain}
-    # already carries its -3000 port when the SPA builds.
+    # Created before frontenddev so ${apidev_zeropsSubdomain} is correct when the FE build runs.
     priority: 5
     verticalAutoscaling:
       minRam: 0.5
@@ -38,28 +43,34 @@ services:
       minFreeRamGB: 0.5
       minDisk: 2
 
-  - hostname: frontend
+  #
+  # Stage apps
+  #
+
+  - hostname: frontendstage
     type: static
-    zeropsSetup: frontend
+    zeropsSetup: frontend-stage
     buildFromGit: https://github.com/zeropsio/workshop-recipe
     enableSubdomainAccess: true
     verticalAutoscaling:
       minRam: 0.25
       minFreeRamGB: 0.25
+    # Tells the homepage which environment topology to draw. The Vite build reads it as ${RUNTIME_VITE_WORKSHOP_ENV}, the dev server reads it directly.
+    vault:
+      VITE_WORKSHOP_ENV: remote-cde
 
-  - hostname: api
+  - hostname: apistage
     type: ubuntu/nodejs@22
     zeropsSetup: api
     buildFromGit: https://github.com/zeropsio/workshop-recipe
     enableSubdomainAccess: true
-    # Created before the SPA so ${api_zeropsSubdomain}
-    # already carries its -3000 port when the SPA builds.
+    # Created before frontendstage so ${apistage_zeropsSubdomain} is correct when the FE build runs.
     priority: 5
     verticalAutoscaling:
       minRam: 0.5
       minFreeRamGB: 0.25
 
-  - hostname: worker
+  - hostname: workerstage
     type: ubuntu/nodejs@22
     zeropsSetup: worker
     buildFromGit: https://github.com/zeropsio/workshop-recipe

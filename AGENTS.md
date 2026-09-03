@@ -11,14 +11,14 @@ Import manifests for six lifecycle environments live in [`.zerops-recipe/`](.zer
 
 | Hostname | Process | Needs |
 |----------|---------|--------|
-| `frontend` | Vite SPA (`apps/frontend`) | Public HTTP, `VITE_API_URL` at build |
-| `api` | `apps/api` | Public HTTP + WebSocket, `PORT`, `APP_URL` (CORS), `DATABASE_URL`, `NATS_URL`, `VALKEY_URL` |
+| `frontend` | Vite SPA (`apps/frontend`) | Public HTTP, `VITE_API_URL` and `VITE_WORKSHOP_ENV` at build (the latter comes from the frontend service vault set by `import.yaml`) |
+| `api` | `apps/api` | Public HTTP + WebSocket, `PORT`, `HOST`, `DATABASE_URL`, `NATS_*`, `VALKEY_URL` |
 | `worker` | `apps/worker` | No public HTTP. Chromium + fonts. Same connection strings. `RENDER_DRIVER=chromium` |
 | `db` | PostgreSQL | Migrations on API/worker boot |
 | `queue` | NATS | Subject `deck.jobs` |
 | `cache` | Valkey | Progress counters + pub/sub `deck:progress` |
 
-Bind `0.0.0.0`. Do not create `.env` files on Zerops — they shadow injected vars.
+Bind all interfaces (`HOST=::` on Zerops, `0.0.0.0` locally), never localhost. The API accepts any origin, so no CORS env is needed. Do not create `.env` files on Zerops — they shadow injected vars.
 
 ## Local
 
@@ -48,6 +48,7 @@ and the Vite SPA on `:5173`. Connection strings are optional locally.
 
 - Worker `prepareCommands` install Google Chrome + fonts on Ubuntu (`chromium` is a snap there). `CHROMIUM_PATH` is `/usr/bin/google-chrome-stable`.
 - NATS is `NATS_HOST` / `NATS_PORT` / `NATS_USER` / `NATS_PASSWORD` — not a single connection string (colons in generated passwords).
+- The `*-dev` setups share db, cache, and queue with stage but run in their own namespace: Postgres schema `DECK_DB_SCHEMA` in database `DB_NAME` (created on boot with `DB_ADMIN_USER` / `DB_ADMIN_PASSWORD`, the `db_superUser` pair, since the connection string carries no database path), Valkey database 1 via the `/1` suffix on `VALKEY_URL`, and `NATS_SUBJECT`. Leave all of them unset on stage and prod.
 - Favicon and mark: `apps/frontend/public/zerops-logo.svg` (transparent; from zeropsio/recipe-shared-assets).
 
 ## Bug scope — deployment only

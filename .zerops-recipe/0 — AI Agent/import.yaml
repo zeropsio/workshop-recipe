@@ -2,29 +2,17 @@
 
 # yaml-language-server: $schema=https://api.app-prg1.zerops.io/api/rest/public/settings/import-project-yaml-json-schema.json
 #
-# AI agent env — zcp workspace plus dev/stage pairs for frontend, api,
-# and worker. No env vars here: zerops.yaml derives the public URLs from
-# ${hostname_zeropsSubdomain}, so they follow the project's own region.
+# AI agent env — zcp workspace plus dev/stage pairs for frontend, api, and worker.
+# No env vars here: zerops.yaml derives the public URLs from ${hostname_zeropsSubdomain}, so they follow the project's own region.
 
 project:
   name: deck-renderer-agent
   location: us-west-1
 
 services:
-  # Agent workspace — Browser VS Code + Zerops MCP. App code runs on
-  # the frontend/api/worker hostnames, not here.
-  - hostname: zcp
-    type: zcp@1
-    maxContainers: 1
-    enableSubdomainAccess: true
-    verticalAutoscaling:
-      minRam: 2
-    buildFromGit: https://github.com/zeropsio/workshop-recipe
-    vault:
-      VSCODE_PASSWORD: "<@generateRandomString(<32>)>"
-      ZCP_VSCODE_AUTH_ENABLED: "true"
-      ZCP_VSCODE: "true"
-      ZCP_AGENT_AUTH_TYPE_CLAUDE_CODE: "oauth"
+  #
+  # Dev apps
+  #
 
   - hostname: frontenddev
     type: ubuntu/nodejs@22
@@ -33,21 +21,23 @@ services:
     enableSubdomainAccess: true
     verticalAutoscaling:
       minRam: 0.5
+    # Tells the homepage which environment topology to draw. The Vite build reads it as ${RUNTIME_VITE_WORKSHOP_ENV}, the dev server reads it directly.
+    vault:
+      VITE_WORKSHOP_ENV: ai-agent
+
 
   - hostname: apidev
     type: ubuntu/nodejs@22
     zeropsSetup: api-dev
     buildFromGit: https://github.com/zeropsio/workshop-recipe
     enableSubdomainAccess: true
-    # Created before the SPA so ${apidev_zeropsSubdomain}
-    # already carries its -3000 port when the SPA builds.
+    # Created before the frontend so ${apidev_zeropsSubdomain} is correct when the FE build runs.
     priority: 5
     verticalAutoscaling:
       minRam: 0.5
       minFreeRamGB: 0.25
 
-  # Chromium lives in run.prepareCommands — needs the Ubuntu worker-dev
-  # setup, not a process-only app container.
+  # Chromium is installed via run.prepareCommands and needs the Ubuntu worker-dev setup, not a process-only app container.
   - hostname: workerdev
     type: ubuntu/nodejs@22
     zeropsSetup: worker-dev
@@ -57,28 +47,34 @@ services:
       minFreeRamGB: 0.5
       minDisk: 2
 
-  - hostname: frontend
+  #
+  # Stage apps
+  #
+
+  - hostname: frontendstage
     type: static
-    zeropsSetup: frontend
+    zeropsSetup: frontend-stage
     buildFromGit: https://github.com/zeropsio/workshop-recipe
     enableSubdomainAccess: true
     verticalAutoscaling:
       minRam: 0.25
       minFreeRamGB: 0.25
+    # Tells the homepage which environment topology to draw. The Vite build reads it as ${RUNTIME_VITE_WORKSHOP_ENV}, the dev server reads it directly.
+    vault:
+      VITE_WORKSHOP_ENV: ai-agent
 
-  - hostname: api
+  - hostname: apistage
     type: ubuntu/nodejs@22
     zeropsSetup: api
     buildFromGit: https://github.com/zeropsio/workshop-recipe
     enableSubdomainAccess: true
-    # Created before the SPA so ${api_zeropsSubdomain}
-    # already carries its -3000 port when the SPA builds.
+    # Created before frontendstage so ${apistage_zeropsSubdomain} is correct when the FE build runs.
     priority: 5
     verticalAutoscaling:
       minRam: 0.5
       minFreeRamGB: 0.25
 
-  - hostname: worker
+  - hostname: workerstage
     type: ubuntu/nodejs@22
     zeropsSetup: worker
     buildFromGit: https://github.com/zeropsio/workshop-recipe

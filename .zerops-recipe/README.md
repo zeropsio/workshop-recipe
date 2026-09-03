@@ -41,7 +41,7 @@ Pick the folder that matches how you work:
 - **Workshop homepage** — resources diagram, ZCP prompts, and coupon banner at `/`
 - **Deck Renderer SPA** — markdown editor and live render progress at `/app`
 - **Worker scale story** — add worker containers and compare render times
-- **Monorepo pipeline** — one `zerops.yaml`, six setups (`frontend`, `frontend-dev`, `api`, `api-dev`, `worker`, `worker-dev`)
+- **Monorepo pipeline** — one `zerops.yaml`, one setup per role (`frontend`, `frontend-stage`, `frontend-dev`, `api`, `api-dev`, `worker`, `worker-dev`, plus `zcp` for the agent workspace)
 - **No Dockerfile** — Node 22 + static Nginx + `prepareCommands` for Chrome on the worker
 <!-- #ZEROPS_EXTRACT_END:features# -->
 
@@ -64,9 +64,9 @@ Local proof without Zerops: `npm install && npm test && npm run dev` (in-memory 
 
 | Hostname | Setup | Role |
 |----------|-------|------|
-| `frontend` / `frontenddev` | `frontend` / `frontend-dev` | Vite SPA → static prod build |
-| `api` / `apidev` | `api` / `api-dev` | REST + `/ws` progress |
-| `worker` / `workerdev` | `worker` / `worker-dev` | Chromium slide capture |
+| `frontend` (prod envs) / `frontendstage` / `frontenddev` | `frontend` / `frontend-stage` / `frontend-dev` | Vite SPA → static build; dev runs Vite by hand |
+| `api` (prod envs) / `apistage` / `apidev` | `api` / `api` / `api-dev` | REST + `/ws` progress |
+| `worker` (prod envs) / `workerstage` / `workerdev` | `worker` / `worker` / `worker-dev` | Chromium slide capture |
 | `db` | — | PostgreSQL job metadata |
 | `queue` | — | NATS subject `deck.jobs` |
 | `cache` | — | Valkey progress counters |
@@ -76,7 +76,9 @@ Cross-service URLs use `${hostname_zeropsSubdomain}` in `zerops.yaml` — never 
 
 ### Environment variables
 
-Managed connections (`DATABASE_URL`, `NATS_*`, `VALKEY_URL`) resolve from service hostnames in `zerops.yaml`. The SPA bakes `VITE_API_URL` at build time from `${api_zeropsSubdomain}` (or `${apidev_zeropsSubdomain}` on dev setups).
+Managed connections (`DATABASE_URL`, `NATS_*`, `VALKEY_URL`) resolve from service hostnames in `zerops.yaml`. The SPA bakes `VITE_API_URL` at build time from `${api_zeropsSubdomain}` (`${apistage_zeropsSubdomain}` on `frontend-stage`, `${apidev_zeropsSubdomain}` on `frontend-dev`). In the AI Agent and Remote envs the `*dev` hostnames are workspaces and the `*stage` hostnames are the deploy target; bare `api` / `frontend` / `worker` exist only in the Stage, Local, and Production envs.
+
+Each `import.yaml` also sets `VITE_WORKSHOP_ENV` in the frontend service vault (`ai-agent`, `remote-cde`, `local`, `stage`, `small-production`, `highly-available-production`). The Vite build lifts it with `${RUNTIME_VITE_WORKSHOP_ENV}` and the homepage uses it to draw the topology of the environment it was deployed from, derived from these import files at build time.
 
 ### Troubleshooting
 

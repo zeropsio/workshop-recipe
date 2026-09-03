@@ -32,9 +32,8 @@ Open `http://localhost:5173`. The API listens on `:3000` with an in-memory
 store and a stub renderer when `DATABASE_URL` / `NATS_URL` / `VALKEY_URL` are
 unset.
 
-On Zerops the SPA needs its API origin at build time, the API needs a CORS
-origin, and the API and worker both need the database, queue, and cache
-connections. The worker additionally needs a headless browser and fonts
+On Zerops the SPA needs its API origin at build time, and the API and worker
+both need the database, queue, and cache connections. The worker additionally needs a headless browser and fonts
 installed in its runtime. See `AGENTS.md` for what each process reads.
 
 Slides are split on a line that is only `---`.
@@ -48,7 +47,6 @@ apps/api        REST + WebSocket
 apps/worker     render process
 packages/shared types, slide split
 packages/engine jobs, lock, render, adapters
-workshop/       conference-ops projects (dev / prod)
 .zerops-recipe/ deploy manifests (six lifecycle environments)
 ```
 

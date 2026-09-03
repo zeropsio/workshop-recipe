@@ -19,14 +19,16 @@ services:
     verticalAutoscaling:
       minRam: 0.25
       minFreeRamGB: 0.25
+    # Tells the homepage which environment topology to draw. The Vite build reads it as ${RUNTIME_VITE_WORKSHOP_ENV}, the dev server reads it directly.
+    vault:
+      VITE_WORKSHOP_ENV: highly-available-production
 
   - hostname: api
     type: ubuntu/nodejs@22
     zeropsSetup: api
     buildFromGit: https://github.com/zeropsio/workshop-recipe
     enableSubdomainAccess: true
-    # Created before the SPA so ${api_zeropsSubdomain}
-    # already carries its -3000 port when the SPA builds.
+    # Created before frontend so ${api_zeropsSubdomain} is correct when the FE build runs.
     priority: 5
     minContainers: 2
     verticalAutoscaling:

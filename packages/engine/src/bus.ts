@@ -50,16 +50,24 @@ export function natsFromEnv(
   return undefined;
 }
 
-export async function createNatsBus(input: string | NatsConnect): Promise<Bus> {
+/** Subject for job messages. NATS_SUBJECT lets a dev deployment share the broker with stage on its own subject. */
+export function natsSubjectFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  return env.NATS_SUBJECT?.trim() || NATS_JOBS_SUBJECT;
+}
+
+export async function createNatsBus(
+  input: string | NatsConnect,
+  subject: string = natsSubjectFromEnv(),
+): Promise<Bus> {
   const opts = typeof input === "string" ? { servers: input } : input;
   const nc = await connect(opts);
   const codec = JSONCodec<JobMessage>();
   return {
     async publish(jobId) {
-      nc.publish(NATS_JOBS_SUBJECT, codec.encode({ jobId }));
+      nc.publish(subject, codec.encode({ jobId }));
     },
     async subscribe(handler) {
-      const sub = nc.subscribe(NATS_JOBS_SUBJECT);
+      const sub = nc.subscribe(subject);
       void (async () => {
         for await (const msg of sub) {
           const { jobId } = codec.decode(msg.data);

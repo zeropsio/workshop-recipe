@@ -214,14 +214,55 @@ export function computeNetworkDiagramPaths(input: ComputePathsInput): AnnotatedP
   const storagePt = storageEl ? topCenter(storageEl) : null;
 
   let sharedMainJuncY = 0;
-  let mainExitX = 0;
+
+  const connects = (svc: NetworkServiceConfig, nodeId: string): boolean =>
+    !svc.dependsOn || svc.dependsOn.includes(nodeId);
+
+  // Every row-1 runtime, main or side, branches to the row-2 services it depends on, all sharing one rail height so the lines
+  // read as a bus. A runtime with an empty dependsOn (the static frontend) draws nothing here.
+  const pushRow2Branches = (svc: NetworkServiceConfig, exit: [number, number], juncY: number) => {
+    if (storagePt && connects(svc, "storage")) {
+      all.push({
+        d: branch(exit, storagePt, juncY - STORAGE_OFFSET),
+        depth: 3,
+        sourceNodeId: svc.id,
+        targetNodeId: "storage",
+        targetBarIndex: -1,
+        active: true,
+      });
+    }
+
+    for (const target of row2SideTargets) {
+      if (!connects(svc, target.nodeId)) continue;
+      all.push({
+        d: branch(exit, target.point, juncY),
+        depth: 3,
+        sourceNodeId: svc.id,
+        targetNodeId: target.nodeId,
+        targetBarIndex: target.barIndex,
+        active: target.active,
+      });
+    }
+
+    for (const target of row2CompoundTargets) {
+      const svcId = target.nodeId.replace(/-lb$/, "");
+      if (!connects(svc, svcId)) continue;
+      all.push({
+        d: branch(exit, target.point, juncY + COMPOUND_OFFSET),
+        depth: 3,
+        sourceNodeId: svc.id,
+        targetNodeId: target.nodeId,
+        targetBarIndex: target.barIndex,
+        active: target.active,
+      });
+    }
+  };
 
   for (const row1Svc of row1MainServices) {
     const row1El = nodeEl(row1Svc.id);
     if (!row1El) continue;
 
     const exit = bottomCenter(row1El);
-    mainExitX = exit[0];
 
     const sideMinY = row2SideTargets.length
       ? Math.min(...row2SideTargets.map((t) => t.point[1]))
@@ -231,129 +272,13 @@ export function computeNetworkDiagramPaths(input: ComputePathsInput): AnnotatedP
     const mainJuncY = Math.max(exit[1] + RADIUS, sideMinY - NEAR_GAP);
     sharedMainJuncY = mainJuncY;
 
-    if (storagePt) {
-      all.push({
-        d: branch(exit, storagePt, mainJuncY - STORAGE_OFFSET),
-        depth: 3,
-        sourceNodeId: row1Svc.id,
-        targetNodeId: "storage",
-        targetBarIndex: -1,
-        active: true,
-      });
-    }
-
-    for (const target of row2SideTargets) {
-      all.push({
-        d: branch(exit, target.point, mainJuncY),
-        depth: 3,
-        sourceNodeId: row1Svc.id,
-        targetNodeId: target.nodeId,
-        targetBarIndex: target.barIndex,
-        active: target.active,
-      });
-    }
-
-    for (const target of row2CompoundTargets) {
-      all.push({
-        d: branch(exit, target.point, mainJuncY + COMPOUND_OFFSET),
-        depth: 3,
-        sourceNodeId: row1Svc.id,
-        targetNodeId: target.nodeId,
-        targetBarIndex: target.barIndex,
-        active: target.active,
-      });
-    }
+    pushRow2Branches(row1Svc, exit, mainJuncY);
   }
 
   for (const sideSvc of row1SideServices) {
     const sideEl = nodeEl(sideSvc.id);
     if (!sideEl || !sharedMainJuncY) continue;
-
-    const exit = bottomCenter(sideEl);
-
-    all.push({
-      d: `M${n(exit[0])},${n(exit[1])}L${n(exit[0])},${n(sharedMainJuncY)}`,
-      depth: 3,
-      sourceNodeId: sideSvc.id,
-      targetNodeId: "bus-rail",
-      targetBarIndex: -1,
-      active: true,
-      renderMode: "base-only",
-    });
-
-    if (storagePt) {
-      all.push({
-        d: branch(exit, storagePt, sharedMainJuncY - STORAGE_OFFSET),
-        depth: 3,
-        sourceNodeId: sideSvc.id,
-        targetNodeId: "storage",
-        targetBarIndex: -1,
-        active: true,
-        renderMode: "glow-only",
-      });
-    }
-
-    for (const target of row2SideTargets) {
-      all.push({
-        d: branch(exit, target.point, sharedMainJuncY),
-        depth: 3,
-        sourceNodeId: sideSvc.id,
-        targetNodeId: target.nodeId,
-        targetBarIndex: target.barIndex,
-        active: target.active,
-        renderMode: "glow-only",
-      });
-    }
-
-    for (const target of row2CompoundTargets) {
-      const [wx, wy] = exit;
-      const [tx, ty] = target.point;
-      const railY = sharedMainJuncY;
-      const viaX = mainExitX;
-
-      const dx1 = viaX - wx;
-      const r1 = Math.min(RADIUS, Math.abs(dx1) / 2, Math.abs(railY - wy) / 2);
-      const h1 = Math.sign(dx1);
-      const dx2 = tx - viaX;
-
-      let d: string;
-      if (Math.abs(dx2) < 3) {
-        const mx = n((viaX + tx) / 2);
-        d = [
-          `M${n(wx)},${n(wy)}`,
-          `L${n(wx)},${n(railY - r1)}`,
-          `Q${n(wx)},${n(railY)},${n(wx + r1 * h1)},${n(railY)}`,
-          `L${n(mx)},${n(railY)}`,
-          `L${n(mx)},${n(ty)}`,
-        ].join("");
-      } else {
-        const compoundRailY = railY + COMPOUND_OFFSET;
-        const h2 = Math.sign(dx2);
-        const rDrop = Math.min(RADIUS, COMPOUND_OFFSET / 2, Math.abs(dx2) / 2);
-        const rTarget = Math.min(RADIUS, Math.abs(dx2) / 2, Math.abs(ty - compoundRailY) / 2);
-        d = [
-          `M${n(wx)},${n(wy)}`,
-          `L${n(wx)},${n(railY - r1)}`,
-          `Q${n(wx)},${n(railY)},${n(wx + r1 * h1)},${n(railY)}`,
-          `L${n(viaX)},${n(railY)}`,
-          `L${n(viaX)},${n(compoundRailY - rDrop)}`,
-          `Q${n(viaX)},${n(compoundRailY)},${n(viaX + rDrop * h2)},${n(compoundRailY)}`,
-          `L${n(tx - rTarget * h2)},${n(compoundRailY)}`,
-          `Q${n(tx)},${n(compoundRailY)},${n(tx)},${n(compoundRailY + rTarget)}`,
-          `L${n(tx)},${n(ty)}`,
-        ].join("");
-      }
-
-      all.push({
-        d,
-        depth: 3,
-        sourceNodeId: sideSvc.id,
-        targetNodeId: target.nodeId,
-        targetBarIndex: target.barIndex,
-        active: target.active,
-        renderMode: "glow-only",
-      });
-    }
+    pushRow2Branches(sideSvc, bottomCenter(sideEl), sharedMainJuncY);
   }
 
   // Segment 5: compound LB → managed service

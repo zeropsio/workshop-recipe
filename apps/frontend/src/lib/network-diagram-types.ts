@@ -17,6 +17,8 @@ export type NetworkServiceConfig = {
   category: NetworkServiceCategory;
   containers: ContainerSpec;
   techIcon?: string;
+  /** Row-2 service ids this runtime connects to. Undefined means every row-2 service (the generic marketing diagram). */
+  dependsOn?: string[];
   hasLoadBalancer?: boolean;
   loadBalancer?: {
     label?: string;

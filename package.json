@@ -26,8 +26,6 @@
     "dev": "node scripts/dev.mjs",
     "build": "npm run build -w @deck/shared && npm run build -w @deck/engine && npm run build -w @deck/api && npm run build -w @deck/worker && npm run build -w @deck/frontend",
     "test": "vitest run",
-    "replicas": "tsx scripts/replicas.ts",
-    "replicas:prod": "REPLICAS=3 tsx scripts/replicas.ts",
     "migrate": "npm run migrate -w @deck/api"
   },
   "devDependencies": {

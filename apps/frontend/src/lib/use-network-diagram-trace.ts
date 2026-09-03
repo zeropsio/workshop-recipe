@@ -83,7 +83,6 @@ function pickWorkerRoute(
     (path) =>
       path.depth === 3 &&
       path.sourceNodeId === sideServiceId &&
-      path.renderMode === "glow-only" &&
       path.active,
   );
   if (!depth3.length) return route;

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { hostname as osHostname } from "node:os";
 import {
   createNatsBus,
   createPostgresStore,
@@ -6,10 +7,13 @@ import {
   handleJob,
   migratePostgres,
   natsFromEnv,
+  natsSubjectFromEnv,
 } from "@deck/engine";
 
+// Zerops sets `hostname` to the service name, which is the same on every container of the service. The OS hostname is per container
+// (node-id-1, node-id-2, ...), so the pair tells replicas apart in the logs.
 const replicaId =
-  process.env.WORKER_ID ?? process.env.HOSTNAME ?? "worker";
+  process.env.WORKER_ID ?? `${process.env.hostname ?? "worker"}/${osHostname()}`;
 const databaseUrl = process.env.DATABASE_URL;
 const nats = natsFromEnv();
 const valkeyUrl = process.env.VALKEY_URL;
@@ -44,5 +48,5 @@ await bus.subscribe((jobId) =>
 );
 
 console.log(
-  `worker listening replica=${replicaId} driver=${renderDriver} subject=deck.jobs`,
+  `worker listening replica=${replicaId} driver=${renderDriver} subject=${natsSubjectFromEnv()}`,
 );

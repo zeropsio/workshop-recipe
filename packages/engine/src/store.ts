@@ -101,18 +101,100 @@ CREATE TABLE IF NOT EXISTS job_pdfs (
 );
 `;
 
-export async function migratePostgres(databaseUrl: string): Promise<void> {
-  const client = new pg.Client({ connectionString: databaseUrl });
+export type PostgresOptions = {
+  /** Schema to work in instead of public. Lets a dev deployment share the database with stage without sharing rows. */
+  schema?: string;
+  /** Credentials allowed to CREATE SCHEMA. The default Zerops user cannot, so the superuser pair is used only for that one statement. */
+  admin?: { user: string; password: string };
+  /** Database the schema lives in. The Zerops connection string has no path, so this comes from the service's dbName variable. */
+  database?: string;
+};
+
+export function postgresOptionsFromEnv(env: NodeJS.ProcessEnv = process.env): PostgresOptions {
+  const schema = env.DECK_DB_SCHEMA?.trim();
+  const admin =
+    env.DB_ADMIN_USER && env.DB_ADMIN_PASSWORD
+      ? { user: env.DB_ADMIN_USER, password: env.DB_ADMIN_PASSWORD }
+      : undefined;
+  return { schema: schema || undefined, admin, database: env.DB_NAME?.trim() || undefined };
+}
+
+function clientConfig(databaseUrl: string, schema?: string): pg.ClientConfig {
+  return schema
+    ? { connectionString: databaseUrl, options: `-c search_path=${schema}` }
+    : { connectionString: databaseUrl };
+}
+
+// pg lets a connection string override explicit user and password, so the admin connection is built from discrete fields instead.
+async function ensureSchema(databaseUrl: string, schema: string, options: PostgresOptions): Promise<void> {
+  const { admin } = options;
+  const url = new URL(databaseUrl);
+  const owner = decodeURIComponent(url.username);
+  // Without a path in the URL pg uses the user name as the database, so the admin connection must be told the owner's database explicitly.
+  // Otherwise the superuser lands in its own database and creates the schema there. Order: URL path, DB_NAME, then pg's own default.
+  const database = decodeURIComponent(url.pathname.replace(/^\//, "")) || options.database || owner;
+  const client = new pg.Client({
+    host: url.hostname,
+    port: url.port ? Number(url.port) : 5432,
+    database,
+    user: admin?.user ?? owner,
+    password: admin?.password ?? decodeURIComponent(url.password),
+  });
   await client.connect();
   try {
+    const schemaId = pg.escapeIdentifier(schema);
+    const ownerId = pg.escapeIdentifier(owner);
+    // IF NOT EXISTS skips AUTHORIZATION when the schema already exists, so ownership and grants are applied explicitly every time.
+    await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaId} AUTHORIZATION ${ownerId}`);
+    await client.query(`ALTER SCHEMA ${schemaId} OWNER TO ${ownerId}`);
+    await client.query(`GRANT ALL ON SCHEMA ${schemaId} TO ${ownerId}`);
+    const { rows } = await client.query<{ db: string; who: string }>(
+      `SELECT current_database() AS db, current_user AS who`,
+    );
+    console.log(
+      `schema ${schema} ready in database ${rows[0]?.db} owned by ${owner} (bootstrapped as ${rows[0]?.who})`,
+    );
+  } finally {
+    await client.end();
+  }
+}
+
+// Fails with a readable message when the schema is not usable on the normal connection, instead of a bare 3F000 from CREATE TABLE.
+async function assertSchemaUsable(client: pg.Client, schema: string): Promise<void> {
+  const { rows } = await client.query<{ db: string; who: string; current: string | null }>(
+    `SELECT current_database() AS db, current_user AS who, current_schema() AS current`,
+  );
+  const state = rows[0];
+  if (state?.current === schema) return;
+  const { rows: schemas } = await client.query<{ name: string; owner: string }>(
+    `SELECT nspname AS name, pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' ORDER BY 1`,
+  );
+  const listing = schemas.map((row) => `${row.name} (owner ${row.owner})`).join(", ");
+  throw new Error(
+    `schema ${schema} is not usable by ${state?.who} in database ${state?.db}: current_schema() is ${state?.current ?? "null"}. Schemas present: ${listing || "none"}`,
+  );
+}
+
+export async function migratePostgres(
+  databaseUrl: string,
+  options: PostgresOptions = postgresOptionsFromEnv(),
+): Promise<void> {
+  if (options.schema) await ensureSchema(databaseUrl, options.schema, options);
+  const client = new pg.Client(clientConfig(databaseUrl, options.schema));
+  await client.connect();
+  try {
+    if (options.schema) await assertSchemaUsable(client, options.schema);
     await client.query(MIGRATION);
   } finally {
     await client.end();
   }
 }
 
-export function createPostgresStore(databaseUrl: string): Store {
-  const pool = new pg.Pool({ connectionString: databaseUrl });
+export function createPostgresStore(
+  databaseUrl: string,
+  options: PostgresOptions = postgresOptionsFromEnv(),
+): Store {
+  const pool = new pg.Pool(clientConfig(databaseUrl, options.schema));
 
   return {
     async insertJob({ markdown, contentHash, slideCount }) {

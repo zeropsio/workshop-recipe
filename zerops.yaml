@@ -1,35 +1,13 @@
 # yaml-language-server: $schema=https://api.app-prg1.zerops.io/api/rest/public/settings/zerops-yaml-json-schema.json
 #
-# Monorepo pipeline — one file, six app setups.
-# import.yaml zeropsSetup names must match these setup: keys.
-# Public URLs come from ${hostname_zeropsSubdomain}, which resolves to
-# https://{hostname}-{subdomainHost}-{port} with the project's own region
-# and declared port. Never hand-build them — a literal region is correct in
-# one project and wrong in every other.
+# Monorepo pipeline - one file, one setup per service. import.yaml zeropsSetup names must match these setup: keys.
+# Public URLs come from ${hostname_zeropsSubdomain}, which resolves to https://{hostname}-{subdomainHost}-{port} with the project's own region
+# and declared port. Never hand-build them - a literal region is correct in one project and wrong in every other.
 #
-# The reference is one-directional on purpose: frontend -> api only. The api
-# scopes CORS with the project-level ${zeropsSubdomainHost} instead of
-# referencing frontend, because mutual service refs cannot both resolve on a
-# single-pass import.
+# The reference is one-directional on purpose: frontend -> api only. The api accepts any origin, so it never needs to reference frontend,
+# and mutual service refs could not both resolve on a single-pass import anyway.
 
 zerops:
-  # ── zcp ─────────────────────────────────────────
-  - setup: zcp
-    run:
-      base: zcp@1
-      initCommands:
-        - curl -sSfL https://zerops.io/zcp/install.sh | sudo sh
-        - zcp init
-        - sudo -E zcp init nginx
-      ports:
-        - port: 8080
-          httpSupport: true
-      startCommands:
-        - command: zcp service start nginx
-          name: nginx
-        - command: zcp service start vscode
-          name: vscode
-
   # ── frontend (prod) ─────────────────────────────────────────
   # Vite build on Node, Nginx runtime. VITE_* is baked in at build
   # time. ${api_zeropsSubdomain} carries its -3000 suffix only once api
@@ -40,26 +18,33 @@ zerops:
       base: ubuntu/nodejs@22
       envVariables:
         VITE_API_URL: ${api_zeropsSubdomain}
-        VITE_WORKSHOP_ENV: prod
+        # Set on the frontend service by import.yaml (ai-agent, stage, ...). RUNTIME_ lifts the service's own runtime var into the build.
+        VITE_WORKSHOP_ENV: ${RUNTIME_VITE_WORKSHOP_ENV}
       buildCommands:
         - npm ci
         - npm run build -w @deck/frontend
       # Strip apps/frontend/dist so index.html is the Nginx root.
       deployFiles:
         - apps/frontend/dist/~
-      cache:
-        - node_modules
     run:
       base: static
 
+  # ── frontend-stage ──────────────────────────────────────────
+  # Same static build as frontend, but the API it bakes in is the stage api (hostname apistage).
+  # Cross-service refs key on the hostname, so envs that pair dev + stage services need this variant.
+  - setup: frontend-stage
+    extends: frontend
+    build:
+      envVariables:
+        VITE_API_URL: ${apistage_zeropsSubdomain}
+        VITE_WORKSHOP_ENV: ${RUNTIME_VITE_WORKSHOP_ENV}
+
   # ── frontend-dev ────────────────────────────────────────────
   # Full tree + Node so the agent can `npm run dev` over SSH.
+  # No run.start on purpose: this container is a workspace, the agent (or a developer) starts the dev server by hand.
   - setup: frontend-dev
     build:
       base: ubuntu/nodejs@22
-      envVariables:
-        VITE_API_URL: ${apidev_zeropsSubdomain}
-        VITE_WORKSHOP_ENV: dev
       buildCommands:
         - npm install
       deployFiles: ./
@@ -70,9 +55,9 @@ zerops:
       ports:
         - port: 5173
           httpSupport: true
+      # VITE_WORKSHOP_ENV is not set here on purpose: import.yaml puts it in this service's vault and the Vite dev server reads it from the environment.
       envVariables:
         VITE_API_URL: ${apidev_zeropsSubdomain}
-        VITE_WORKSHOP_ENV: dev
 
   # ── api (prod) ──────────────────────────────────────────────
   # REST + WebSocket. Talks to db, queue, and cache by hostname.
@@ -81,11 +66,8 @@ zerops:
       base: ubuntu/nodejs@22
       buildCommands:
         - npm ci
-      # Workspace packages are linked from the repo root — deploy
-      # the tree, not a single app folder.
+      # Workspace packages are linked from the repo root — deploy the tree, not a single app folder.
       deployFiles: ./
-      cache:
-        - node_modules
     deploy:
       readinessCheck:
         httpGet:
@@ -93,22 +75,16 @@ zerops:
           path: /health
     run:
       base: ubuntu/nodejs@22
-      # One migrator per deploy version. Worker also runs IF NOT
-      # EXISTS on boot; execOnce keeps the first-deploy race off
-      # the request path.
+      # Migrations run once per deploy version. The api and worker also apply them on boot, so this only makes sure the schema exists before either process starts.
       initCommands:
         - zsc execOnce ${appVersionId}-api-migrate --retryUntilSuccessful -- npm run migrate -w @deck/api
       ports:
         - port: 3000
           httpSupport: true
       envVariables:
+        NODE_ENV: production
         PORT: "3000"
         HOST: "::"
-        # CORS is scoped by the project's own subdomain host, a project-level
-        # value present from project creation. Referencing the frontend
-        # service here instead would deadlock: frontend's build needs
-        # ${api_zeropsSubdomain}, so api must be created first.
-        PROJECT_SUBDOMAIN_HOST: ${zeropsSubdomainHost}
         DATABASE_URL: ${db_connectionString}
         VALKEY_URL: ${cache_connectionString}
         # Discrete NATS fields — nats.js treats extra colons in a
@@ -124,6 +100,7 @@ zerops:
           path: /health
 
   # ── api-dev ─────────────────────────────────────────────────
+  # No run.start on purpose: workspace container, start the API by hand with `npm run dev -w @deck/api`.
   - setup: api-dev
     build:
       base: ubuntu/nodejs@22
@@ -140,17 +117,23 @@ zerops:
         - port: 3000
           httpSupport: true
       envVariables:
+        NODE_ENV: development
         PORT: "3000"
         HOST: "::"
-        # Same project-scope CORS host as the prod api — admits the Vite
-        # slot and the static SPA alike, in any region.
-        PROJECT_SUBDOMAIN_HOST: ${zeropsSubdomainHost}
+        # Dev shares db, cache, and queue with stage but works in its own namespace, so a job submitted on apidev is never picked up by workerstage and stage never sees dev progress.
+        # Postgres: schema "dev" (created by the superuser on boot, owned by the default user). Valkey: database 1. NATS: its own subject.
+        # The stage setups use the defaults (public schema, database 0, deck.jobs).
         DATABASE_URL: ${db_connectionString}
-        VALKEY_URL: ${cache_connectionString}
+        DECK_DB_SCHEMA: dev
+        DB_NAME: ${db_dbName}
+        DB_ADMIN_USER: ${db_superUser}
+        DB_ADMIN_PASSWORD: ${db_superUserPassword}
+        VALKEY_URL: ${cache_connectionString}/1
         NATS_HOST: ${queue_hostname}
         NATS_PORT: ${queue_port}
         NATS_USER: ${queue_user}
         NATS_PASSWORD: ${queue_password}
+        NATS_SUBJECT: deck.jobs.dev
 
   # ── worker (prod) ───────────────────────────────────────────
   # CPU-bound Chromium. No public HTTP. System packages live in
@@ -161,12 +144,9 @@ zerops:
       buildCommands:
         - npm ci
       deployFiles: ./
-      cache:
-        - node_modules
     run:
       base: ubuntu/nodejs@22
-      # Ubuntu ships Chromium as a snap and fonts-noto-core only on
-      # 24.04 — both 100 apt. Chrome is a real .deb Playwright can launch.
+      # Ubuntu ships Chromium only as a snap, which cannot be installed with apt in a container. Google Chrome is a real .deb Playwright can launch.
       prepareCommands:
         - sudo apt-get update
         - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates fonts-liberation fonts-noto
@@ -186,6 +166,7 @@ zerops:
       start: npm run start -w @deck/worker
 
   # ── worker-dev ──────────────────────────────────────────────
+  # No run.start on purpose: workspace container, start the worker by hand with `npm run dev -w @deck/worker`.
   - setup: worker-dev
     build:
       base: ubuntu/nodejs@22
@@ -206,9 +187,15 @@ zerops:
         NODE_ENV: development
         RENDER_DRIVER: chromium
         CHROMIUM_PATH: /usr/bin/google-chrome-stable
+        # Same dev namespace as api-dev, see the comment there.
         DATABASE_URL: ${db_connectionString}
-        VALKEY_URL: ${cache_connectionString}
+        DECK_DB_SCHEMA: dev
+        DB_NAME: ${db_dbName}
+        DB_ADMIN_USER: ${db_superUser}
+        DB_ADMIN_PASSWORD: ${db_superUserPassword}
+        VALKEY_URL: ${cache_connectionString}/1
         NATS_HOST: ${queue_hostname}
         NATS_PORT: ${queue_port}
         NATS_USER: ${queue_user}
         NATS_PASSWORD: ${queue_password}
+        NATS_SUBJECT: deck.jobs.dev
