@@ -20,7 +20,7 @@ export function resolveChromiumPath(
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
   const candidates = [env.CHROMIUM_PATH, ...LOCAL_CHROME_CANDIDATES];
-  return candidates.find((path): path is string => Boolean(path) && existsSync(path));
+  return candidates.find((path): path is string => typeof path === "string" && existsSync(path));
 }
 
 export type RenderDriver = "stub" | "chromium";
