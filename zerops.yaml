@@ -102,7 +102,6 @@ zerops:
         - port: 3000
           httpSupport: true
       envVariables:
-        NODE_ENV: production
         PORT: "3000"
         HOST: "::"
         # CORS is scoped by the project's own subdomain host, a project-level
@@ -141,7 +140,6 @@ zerops:
         - port: 3000
           httpSupport: true
       envVariables:
-        NODE_ENV: development
         PORT: "3000"
         HOST: "::"
         # Same project-scope CORS host as the prod api — admits the Vite
